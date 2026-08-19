@@ -71,6 +71,9 @@ CHASE_CATEGORY_MAP = {
     "Shopping":          "Remainder",
     "Travel":            "Travel Fund",
     "Health & Wellness": "Remainder",
+    "Personal": "Savings",
+    "Automotive": "Remainder",
+    "Entertainment": "Remainder",
 }
 
 COLORS = {
@@ -218,9 +221,22 @@ def _parse_capitalone(lines):
                     "Posted Date":      post_date,
                     "Description":      desc.strip(),
                     "USD Amount":       ("-" if is_credit else "") + usd_str,
-                    "Foreign Amount":   fa or "",
+                    "Foreign Amount":   fa or "-",
                     "Currency":         cur,
-                    "Exchange Rate":    rate or "",
+                    "Exchange Rate":    rate or "-",
+                    "Type":             "Credit" if is_credit else "Charge",
+                    "Bank":             "Capital One",
+                })
+            else:
+                # Non-foreign (USD) transaction — fill foreign fields with dashes
+                rows.append({
+                    "Transaction Date": trans_date,
+                    "Posted Date":      post_date,
+                    "Description":      desc.strip(),
+                    "USD Amount":       ("-" if is_credit else "") + usd_str,
+                    "Foreign Amount":   "-",
+                    "Currency":         "USD",
+                    "Exchange Rate":    "-",
                     "Type":             "Credit" if is_credit else "Charge",
                     "Bank":             "Capital One",
                 })
@@ -356,6 +372,15 @@ def _sort_rows_by_master(pdf_rows, master_path, date_col, amount_col):
         d = str(d).strip()
         if '/' in d:
             parts = d.split('/')
+            # Could be MM/DD, MM/DD/YYYY, or YYYY/MM/DD
+            if len(parts[0]) == 4:  # YYYY/MM/DD
+                return f"{parts[1].zfill(2)}/{parts[2].zfill(2)}"
+            return f"{parts[0].zfill(2)}/{parts[1].zfill(2)}"
+        if '-' in d:
+            parts = d.split('-')
+            # ISO YYYY-MM-DD, or MM-DD-YYYY, or MM-DD
+            if len(parts[0]) == 4:  # YYYY-MM-DD
+                return f"{parts[1].zfill(2)}/{parts[2].zfill(2)}"
             return f"{parts[0].zfill(2)}/{parts[1].zfill(2)}"
         months = {"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06",
                   "Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}
@@ -745,7 +770,7 @@ class App(tk.Tk):
             sym = CURRENCY_SYMBOLS.get(k, k)
             v = totals_foreign.get(k, 0)
             self._stat_labels[k].config(text=f"{sym}{v:,.2f}" if v else "—")
-        other_usd = sum(v for k, v in totals_usd.items() if k not in known)
+        other_usd = sum(v for k, v in totals_usd.items() if k not in known and k != "USD")
         self._stat_labels["Other"].config(text=f"${other_usd:,.2f}" if other_usd else "—")
 
     def _apply_pdf_filter(self):
